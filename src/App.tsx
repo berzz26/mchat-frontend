@@ -1,7 +1,22 @@
-export default function App() {
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import AuthPage from "./pages/Auth";
+// import HomePage from "./pages/HomePage";
+// import JoinPage from "./pages/JoinPage";
+// import ChatPage from "./pages/ChatPage";
+
+function App() {
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-900 text-white">
-      <h1 className="text-4xl font-bold">Tailwind is Working 🎉</h1>
-    </div>
-  )
+    <Router>
+      <Routes>
+        {/* <Route path="/" element={<HomePage />} />
+        <Route path="/join" element={<JoinPage />} />
+        <Route path="/chat/:roomId" element={<ChatPage />} /> */
+          <Route path="/auth" element={< AuthPage />} />
+
+        }
+      </Routes>
+    </Router>
+  );
 }
+
+export default App;
