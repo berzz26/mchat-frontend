@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
-
+import { useNavigate } from "react-router-dom";
 // --- 1. Updated Message Interface ---
 // Matches the rich data object sent by the backend.
 interface Message {
@@ -31,8 +31,8 @@ function ChatPage() {
   const [input, setInput] = useState<string>("");
   const [usersConnected, setUsersConnected] = useState(0);
   const socketRef = useRef<Socket | null>(null);
+  const navigate = useNavigate()
 
-  // --- 2. Retrieve Full User Info ---
   // Assumes localStorage stores an object with 'id' and 'username'.
   const [userInfo] = useState(() => {
     try {
@@ -48,7 +48,10 @@ function ChatPage() {
   });
 
   useEffect(() => {
-    if (!userInfo.id || !roomId) return;
+    if (!userInfo.id || !roomId) {
+      navigate('/auth')
+      return
+    }
 
     // Use a ref to store the socket instance
     socketRef.current = io(BACKEND_URL, {
@@ -134,16 +137,14 @@ function ChatPage() {
           <div
             // --- 5. Use Unique ID for Key ---
             key={m.id}
-            className={`flex items-start ${
-              m.user === userInfo.id ? "justify-end" : "justify-start"
-            }`}
+            className={`flex items-start ${m.user === userInfo.id ? "justify-end" : "justify-start"
+              }`}
           >
             <div
-              className={`max-w-xs md:max-w-md p-3 rounded-xl ${
-                m.user === userInfo.id
-                  ? "bg-gray-700 text-gray-100"
-                  : "bg-gray-800 text-gray-200"
-              }`}
+              className={`max-w-xs md:max-w-md p-3 rounded-xl ${m.user === userInfo.id
+                ? "bg-gray-700 text-gray-100"
+                : "bg-gray-800 text-gray-200"
+                }`}
             >
               <b className="font-semibold">
                 {/* --- 6. Display User's Name --- */}
