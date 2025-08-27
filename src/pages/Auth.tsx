@@ -8,6 +8,8 @@ function AuthPage() {
     const [error, setError] = useState<string | null>(null);
 
     const navigate = useNavigate();
+    const BACKEND_URL = import.meta.env.VITE_API_URL;
+
 
     const handleAuth = async () => {
         if (!username.trim()) {
@@ -19,7 +21,7 @@ function AuthPage() {
         setError(null);
 
         try {
-            const endpoint = isNewUser ? "/api/auth/signup" : "/api/auth/login";
+            const endpoint = isNewUser ? `${BACKEND_URL}/auth/signup` : `${BACKEND_URL}/auth/login`;
             const res = await fetch(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -47,14 +49,14 @@ function AuthPage() {
     return (
         <div className="h-screen w-screen flex items-center justify-center bg-black text-white">
             <div className="flex flex-col space-y-4 w-80 p-6 rounded-xl bg-gray-900 shadow-lg">
-                <h1 className="text-2xl font-bold text-center">Enter Chat</h1>
+                <h1 className="text-2xl font-bold text-center">Welcome To Mchat</h1>
 
                 <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter username"
-                    className="px-4 py-2 rounded-lg text-black"
+                    className="px-4 py-2 rounded-lg text-white border-white"
                 />
 
                 <label className="flex items-center space-x-2">
