@@ -7,17 +7,20 @@ interface Room {
    name: string;
    maxUsers?: number;
    userId: string;
+   users?: string;
+   creator: any;
 }
 
 const HomePage: React.FC = () => {
    const navigate = useNavigate();
    const [rooms, setRooms] = useState<Room[]>([]);
+   const [userRooms, setUserRooms] = useState<Room[]>([]);
    const [loading, setLoading] = useState(false);
    const BACKEND_URL = import.meta.env.VITE_API_URL;
 
    // Use a state variable for userId to make it accessible throughout the component
    // The function inside useState is a "lazy initializer" that runs only once on initial render
-   const [userId, setUserId] = useState(() => {
+   const [userId] = useState(() => {
       try {
          const user = localStorage.getItem("user");
          if (user) {
@@ -33,7 +36,7 @@ const HomePage: React.FC = () => {
 
 
    useEffect(() => {
-   
+
       if (!userId) {
          navigate("/auth"); // Redirect if not logged in
          return;
@@ -42,9 +45,10 @@ const HomePage: React.FC = () => {
       const fetchRooms = async () => {
          try {
             setLoading(true);
-            const res = await axios.get(`${BACKEND_URL}/room/get-rooms`);
+            const res = await axios.get(`${BACKEND_URL}/room/get-rooms/${userId}`);
             if (res.data.success) {
-               setRooms(res.data.message);
+               setRooms(res.data.message.generalRooms);
+               setUserRooms(res.data.message.userRooms)
             }
          } catch (error) {
             console.error("Failed to fetch rooms", error);
@@ -132,17 +136,22 @@ const HomePage: React.FC = () => {
          </div>
 
          <div className="w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-3">Available Rooms</h2>
+            <h2 className="text-xl font-semibold mb-3 ">My Rooms</h2>
             {loading ? (
                <p>Loading rooms...</p>
             ) : (
                <ul className="space-y-2">
-                  {rooms.map((room) => (
+                  {userRooms.map((room) => (
                      <li
                         key={room.id}
                         className="p-3 bg-gray-800 rounded-lg flex justify-between items-center"
                      >
-                        <span>{room.name}</span>
+                        <div>
+                           <span className="block font-medium">{room.name}</span>
+                           <span className="block text-xs text-gray-400">
+                              Created by {room.creator.username}
+                           </span>
+                        </div>
                         <button
                            onClick={() => handleJoinRoom(room.id)}
                            className="text-sm bg-blue-500 px-2 py-1 rounded hover:bg-blue-600"
@@ -153,6 +162,36 @@ const HomePage: React.FC = () => {
                   ))}
                </ul>
             )}
+            <h2 className="text-xl font-semibold mb-3 mt-12">General Rooms</h2>
+            {loading ? (
+               <p>Loading rooms...</p>
+            ) : (
+               <ul className="space-y-2">
+                  {rooms.map((room) => (
+                     <li
+                        key={room.id}
+                        className="p-3 bg-gray-800 rounded-lg flex justify-between items-center"
+                     >
+                        <div>
+                           <span className="block font-medium">{room.name}</span>
+                           <span className="block text-xs text-gray-400">
+                              Created by {room.creator.username}
+                           </span>
+                        </div>
+
+                        <button
+                           onClick={() => handleJoinRoom(room.id)}
+                           className="text-sm bg-blue-500 px-2 py-1 rounded hover:bg-blue-600"
+                        >
+                           Join
+                        </button>
+                     </li>
+                  ))}
+
+
+               </ul>
+            )}
+
          </div>
       </div>
    );
