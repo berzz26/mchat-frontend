@@ -32,6 +32,7 @@ function ChatPage() {
   const [input, setInput] = useState<string>("");
   const [usersConnected, setUsersConnected] = useState(0);
   const socketRef = useRef<Socket | null>(null);
+  const [loading, setLoading] = useState<boolean>(false)
   const navigate = useNavigate()
 
   // Assumes localStorage stores an object with 'id' and 'username'.
@@ -51,8 +52,10 @@ function ChatPage() {
   const getHistory = async () => {
 
     try {
+      setLoading(true)
       const res = await axios.get(`${BACKEND_URL}/api/room/get-message/${roomId}`)
       if (res.data.success) {
+        setLoading(false)
         const history: Message[] = res.data.message.map((m: any) => ({
           id: m.id,
           user: m.userId,
@@ -158,29 +161,30 @@ function ChatPage() {
       </div>
 
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2 custom-scrollbar">
-        {messages.map((m) => (
-          <div
-            // --- 5. Use Unique ID for Key ---
-            key={m.id}
-            className={`flex items-start ${m.user === userInfo.id ? "justify-end" : "justify-start"
-              }`}
-          >
+
+      {loading ? <div>Loading history...</div> : (
+        <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2 custom-scrollbar">
+          {messages.map((m) => (
             <div
-              className={`max-w-xs md:max-w-md p-3 rounded-xl ${m.user === userInfo.id
-                ? "bg-gray-700 text-gray-100"
-                : "bg-gray-800 text-gray-200"
+              key={m.id}
+              className={`flex items-start ${m.user === userInfo.id ? "justify-end" : "justify-start"
                 }`}
             >
-              <b className="font-semibold">
-                {/* --- 6. Display User's Name --- */}
-                {m.user === userInfo.id ? "You" : m.name}:
-              </b>{" "}
-              {m.text}
+              <div
+                className={`max-w-xs md:max-w-md p-3 rounded-xl ${m.user === userInfo.id
+                  ? "bg-gray-700 text-gray-100"
+                  : "bg-gray-800 text-gray-200"
+                  }`}
+              >
+                <b className="font-semibold">
+                  {m.user === userInfo.id ? "You" : m.name}:
+                </b>{" "}
+                {m.text}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Input Section */}
       <div className="flex items-center space-x-2">
