@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
 // --- 1. Updated Message Interface ---
 // Matches the rich data object sent by the backend.
@@ -47,12 +48,34 @@ function ChatPage() {
     return { id: null, name: "Anonymous" };
   });
 
+  const getHistory = async () => {
+
+    try {
+      const res = await axios.get(`${BACKEND_URL}/api/room/get-message/${roomId}`)
+      if (res.data.success) {
+        const history: Message[] = res.data.message.map((m: any) => ({
+          id: m.id,
+          user: m.userId,
+          name: m.User.username,
+          text: m.text,
+          sentAt: m.sentAt,
+
+        }));
+
+        setMessages(history)
+      }
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+
+    }
+  }
+
   useEffect(() => {
     if (!userInfo.id || !roomId) {
       navigate('/auth')
       return
     }
-
+    getHistory()
     // Use a ref to store the socket instance
     socketRef.current = io(BACKEND_URL, {
       query: { userId: userInfo.id, roomId },
@@ -84,6 +107,9 @@ function ChatPage() {
       socket.disconnect();
     };
   }, [userInfo.id, roomId]);
+
+
+
 
   const sendMessage = () => {
     const socket = socketRef.current;
