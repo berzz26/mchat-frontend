@@ -165,7 +165,7 @@ function ChatPage() {
       {/* Header */}
       <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-4">
         <h1 className="text-xl md:text-2xl font-medium text-gray-100">
-          Chat Room
+          Chat Room : {}
         </h1>
         <div className="flex space-x-4 text-sm md:text-base text-gray-400">
           <span>UserID: {userInfo.id?.substring(0, 8)}...</span>

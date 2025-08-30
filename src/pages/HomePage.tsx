@@ -1,6 +1,8 @@
+// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import Modal from "../components/Modal"; // Import the new Modal component
 
 interface Room {
    id: string;
@@ -8,7 +10,7 @@ interface Room {
    maxUsers?: number;
    userId: string;
    users?: string;
-   creator: any;
+   creator: { username: string };
 }
 
 const HomePage: React.FC = () => {
@@ -18,8 +20,10 @@ const HomePage: React.FC = () => {
    const [loading, setLoading] = useState(false);
    const BACKEND_URL = import.meta.env.VITE_API_URL;
 
-   // Use a state variable for userId to make it accessible throughout the component
-   // The function inside useState is a "lazy initializer" that runs only once on initial render
+   // State for modal visibility
+   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+
    const [userId] = useState(() => {
       try {
          const user = localStorage.getItem("user");
@@ -33,12 +37,9 @@ const HomePage: React.FC = () => {
       return null;
    });
 
-
-
    useEffect(() => {
-
       if (!userId) {
-         navigate("/auth"); // Redirect if not logged in
+         navigate("/auth");
          return;
       }
 
@@ -48,7 +49,7 @@ const HomePage: React.FC = () => {
             const res = await axios.get(`${BACKEND_URL}/api/room/get-rooms/${userId}`);
             if (res.data.success) {
                setRooms(res.data.message.generalRooms);
-               setUserRooms(res.data.message.userRooms)
+               setUserRooms(res.data.message.userRooms);
             }
          } catch (error) {
             console.error("Failed to fetch rooms", error);
@@ -58,16 +59,10 @@ const HomePage: React.FC = () => {
       };
 
       fetchRooms();
-   }, [userId, navigate, BACKEND_URL]); // Add BACKEND_URL to the dependency array
+   }, [userId, navigate, BACKEND_URL]);
 
-   const handleCreateRoom = async () => {
-      if (!userId) {
-         // No need to check again, the useEffect handles redirect
-         return;
-      }
-
-      const name = prompt("Enter room name:");
-      if (!name) return;
+   const handleCreateRoom = async (name: string) => {
+      if (!userId) return;
 
       try {
          const res = await axios.post(`${BACKEND_URL}/api/room/create-room`, {
@@ -76,30 +71,29 @@ const HomePage: React.FC = () => {
          });
 
          if (res.data.success) {
+            const roomId = res.data.message.id;
             alert("Room created successfully!");
+             navigate(`/room/${roomId}`, { state: res.data.message });
             setRooms((prev) => [...prev, res.data.message]);
          }
       } catch (error) {
          console.error("Error creating room", error);
          alert("Failed to create room.");
+      } finally {
+         setIsCreateModalOpen(false);
       }
    };
 
-   const handleJoinRoom = async (roomId?: string) => {
+   const handleJoinRoom = async (roomId: string) => {
       if (!userId) {
          navigate("/auth");
          return;
       }
 
-      if (!roomId) {
-         roomId = prompt("Enter Room ID:") || "";
-         if (!roomId) return;
-      }
-
       try {
          const res = await axios.post(
             `${BACKEND_URL}/api/room/join-room/${roomId}`,
-            { userId } // Pass userId in the body
+            { userId }
          );
 
          if (res.data.success) {
@@ -109,90 +103,118 @@ const HomePage: React.FC = () => {
       } catch (error) {
          console.error("Error joining room", error);
          alert("Failed to join room.");
+      } finally {
+         setIsJoinModalOpen(false);
       }
    };
 
    if (!userId) {
-      return null; // Don't render anything while redirecting
+      return null;
    }
 
    return (
-      <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-6">
-         <h1 className="text-3xl font-bold mb-6">Welcome to Chat Rooms</h1>
+      <div className="flex justify-center p-6 bg-black text-white min-h-screen">
+         <div className="w-full max-w-2xl mx-auto flex flex-col space-y-8 rounded-3xl border border-gray-700 bg-gray-900/40 p-10 shadow-lg backdrop-blur-md">
+            <h1 className="text-center font-sans text-3xl font-bold tracking-tight text-white">
+               Chat Rooms
+            </h1>
 
-         <div className="flex gap-4 mb-6">
-            <button
-               onClick={handleCreateRoom}
-               className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-700"
-            >
-               Create Room
-            </button>
-            <button
-               onClick={() => handleJoinRoom()}
-               className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
-               Join Room
-            </button>
+            {/* Action Buttons Section */}
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+               <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="w-full rounded-xl bg-purple-600 py-3 font-semibold text-white transition-all duration-200 hover:bg-purple-700"
+               >
+                  Create Room
+               </button>
+               <button
+                  onClick={() => setIsJoinModalOpen(true)}
+                  className="w-full rounded-xl bg-gray-700 py-3 font-semibold text-white transition-all duration-200 hover:bg-gray-600"
+               >
+                  Join Room by ID
+               </button>
+            </div>
+
+            {/* My Rooms List Section */}
+            <div className="space-y-6">
+               <h2 className="text-xl font-semibold text-gray-200">My Rooms</h2>
+               <div className="space-y-4">
+                  {loading ? (
+                     <p className="text-center text-gray-400">Loading rooms...</p>
+                  ) : (
+                     userRooms.map((room) => (
+                        <li
+                           key={room.id}
+                           className="list-none p-4 bg-gray-800/50 rounded-xl flex justify-between items-center transition-all duration-200 hover:scale-[1.01] border border-gray-700"
+                        >
+                           <div>
+                              <span className="block font-medium text-lg">{room.name}</span>
+                              <span className="block text-xs text-gray-400">
+                                 Created by {room.creator.username}
+                              </span>
+                           </div>
+                           <button
+                              onClick={() => handleJoinRoom(room.id)}
+                              className="text-sm bg-purple-600 px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                           >
+                              Join
+                           </button>
+                        </li>
+                     ))
+                  )}
+               </div>
+            </div>
+
+            {/* General Rooms List Section */}
+            <div className="space-y-6">
+               <h2 className="text-xl font-semibold text-gray-200">General Rooms</h2>
+               <div className="space-y-4">
+                  {loading ? (
+                     <p className="text-center text-gray-400">Loading rooms...</p>
+                  ) : (
+                     rooms.map((room) => (
+                        <li
+                           key={room.id}
+                           className="list-none p-4 bg-gray-800/50 rounded-xl flex justify-between items-center transition-all duration-200 hover:scale-[1.01] border border-gray-700"
+                        >
+                           <div>
+                              <span className="block font-medium text-lg">{room.name}</span>
+                              <span className="block text-xs text-gray-400">
+                                 Created by {room.creator.username}
+                              </span>
+                           </div>
+                           <button
+                              onClick={() => handleJoinRoom(room.id)}
+                              className="text-sm bg-purple-600 px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                           >
+                              Join
+                           </button>
+                        </li>
+                     ))
+                  )}
+               </div>
+            </div>
          </div>
 
-         <div className="w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-3 ">My Rooms</h2>
-            {loading ? (
-               <p>Loading rooms...</p>
-            ) : (
-               <ul className="space-y-2">
-                  {userRooms.map((room) => (
-                     <li
-                        key={room.id}
-                        className="p-3 bg-gray-800 rounded-lg flex justify-between items-center"
-                     >
-                        <div>
-                           <span className="block font-medium">{room.name}</span>
-                           <span className="block text-xs text-gray-400">
-                              Created by {room.creator.username}
-                           </span>
-                        </div>
-                        <button
-                           onClick={() => handleJoinRoom(room.id)}
-                           className="text-sm bg-blue-500 px-2 py-1 rounded hover:bg-blue-600"
-                        >
-                           Join
-                        </button>
-                     </li>
-                  ))}
-               </ul>
-            )}
-            <h2 className="text-xl font-semibold mb-3 mt-12">General Rooms</h2>
-            {loading ? (
-               <p>Loading rooms...</p>
-            ) : (
-               <ul className="space-y-2">
-                  {rooms.map((room) => (
-                     <li
-                        key={room.id}
-                        className="p-3 bg-gray-800 rounded-lg flex justify-between items-center"
-                     >
-                        <div>
-                           <span className="block font-medium">{room.name}</span>
-                           <span className="block text-xs text-gray-400">
-                              Created by {room.creator.username}
-                           </span>
-                        </div>
-
-                        <button
-                           onClick={() => handleJoinRoom(room.id)}
-                           className="text-sm bg-blue-500 px-2 py-1 rounded hover:bg-blue-600"
-                        >
-                           Join
-                        </button>
-                     </li>
-                  ))}
-
-
-               </ul>
-            )}
-
-         </div>
+         {/* Modals for creating and joining rooms */}
+         <Modal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onConfirm={handleCreateRoom}
+            title="Create a New Room"
+            placeholder="Enter room name"
+            confirmText="Create"
+            type="text"
+         />
+         <Modal
+            isOpen={isJoinModalOpen}
+            onClose={() => setIsJoinModalOpen(false)}
+            onConfirm={handleJoinRoom}
+            title="Join a Room"
+            placeholder="Enter room ID"
+            confirmText="Join"
+            type="text"
+         />
       </div>
    );
 };
