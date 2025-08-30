@@ -1,41 +1,40 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
-// --- 1. Updated Message Interface ---
-// Matches the rich data object sent by the backend.
-interface Message {
-  id: string; // Unique ID for React key
-  user: string; // The userId of the sender
-  name: string; // The display name of the sender
-  text: string;
-  sentAt: string; // ISO date string
+
+// --- 1. A single, unified interface for all server events ---
+interface ServerPayload {
+  type: "new_message" | "user_count_update" | "user_joined" | "user_left";
+  // Optional properties since they vary by event type
+  id?: string;
+  userId?: string;
+  name?: string;
+  text?: string;
+  sentAt?: string;
+  count?: number;
 }
 
-// Server now sends typed messages, so we handle the payload.
-interface ServerMessagePayload {
-  type: "new_message";
+interface Message {
   id: string;
-  roomId: string;
-  userId: string;
+  user: string;
   name: string;
   text: string;
   sentAt: string;
 }
 
-const BACKEND_URL = `http://localhost:3000`;
+const BACKEND_URL = import.meta.env.VITE_API_URL;
 
 function ChatPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
-  const [usersConnected, setUsersConnected] = useState(0);
+  const [usersConnected, setUsersConnected] = useState(0); // This will now be updated correctly
   const socketRef = useRef<Socket | null>(null);
-  const [loading, setLoading] = useState<boolean>(false)
-  const navigate = useNavigate()
+  const [loading, setLoading] = useState<boolean>(false);
+  const navigate = useNavigate();
+  const messagesEndRef = useRef<null | HTMLDivElement>(null); // Ref for auto-scroll
 
-  // Assumes localStorage stores an object with 'id' and 'username'.
   const [userInfo] = useState(() => {
     try {
       const user = localStorage.getItem("user");
@@ -50,86 +49,100 @@ function ChatPage() {
   });
 
   const getHistory = async () => {
-
     try {
-      setLoading(true)
-      const res = await axios.get(`${BACKEND_URL}/api/room/get-message/${roomId}`)
+      setLoading(true);
+      const res = await axios.get(`${BACKEND_URL}/api/room/get-message/${roomId}`);
       if (res.data.success) {
-        setLoading(false)
         const history: Message[] = res.data.message.map((m: any) => ({
           id: m.id,
           user: m.userId,
           name: m.User.username,
           text: m.text,
           sentAt: m.sentAt,
-
         }));
-
-        setMessages(history)
+        setMessages(history);
       }
     } catch (error) {
       console.error("Failed to fetch history:", error);
-
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     if (!userInfo.id || !roomId) {
-      navigate('/auth')
-      return
+      navigate('/auth');
+      return;
     }
-    getHistory()
-    // Use a ref to store the socket instance
+    getHistory();
+
     socketRef.current = io(BACKEND_URL, {
-      query: { userId: userInfo.id, roomId },
+      query: { userId: userInfo.id, roomId, username: userInfo.name },
     });
 
     const socket = socketRef.current;
 
-    // --- 3. Handle Specific Message Types ---
-    // The server-side fix means we no longer need to check if the message is our own.
-    // This listener will only receive messages from other users.
-    socket.on("server", (payload: ServerMessagePayload) => {
-      if (payload.type === "new_message") {
-        const newMessage: Message = {
-          id: payload.id,
-          user: payload.userId,
-          name: payload.name,
-          text: payload.text,
-          sentAt: payload.sentAt,
-        };
-        setMessages((prev) => [...prev, newMessage]);
+    // --- 2. A single listener to handle ALL server events ---
+    socket.on("server", (payload: ServerPayload) => {
+      switch (payload.type) {
+        case "new_message":
+          // Safety check to prevent optimistic update duplication
+          if (payload.userId === userInfo.id) return;
+
+          const newMessage: Message = {
+            id: payload.id!,
+            user: payload.userId!,
+            name: payload.name!,
+            text: payload.text!,
+            sentAt: payload.sentAt!,
+          };
+          setMessages((prev) => [...prev, newMessage]);
+          break;
+
+        // --- 3. CORRECTED: User count is handled here! ---
+        case "user_count_update":
+          setUsersConnected(payload.count!);
+          break;
+
+        case "user_joined":
+          // Optional: Add a system message like "User X has joined"
+          console.log(`User ${payload.userId} joined the room.`);
+          break;
+
+        case "user_left":
+          // Optional: Add a system message like "User X has left"
+          console.log(`User ${payload.userId} left the room.`);
+          break;
       }
     });
 
-    socket.on("user_count_update", (count: number) => {
-      setUsersConnected(count);
-    });
+    // --- The separate, incorrect listener is now REMOVED ---
 
     return () => {
       socket.disconnect();
     };
-  }, [userInfo.id, roomId]);
+  }, [userInfo.id, roomId, userInfo.name, navigate]);
 
 
+  // Effect for auto-scrolling
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
 
   const sendMessage = () => {
     const socket = socketRef.current;
     if (!input.trim() || !socket || !userInfo.id || !roomId) return;
 
-    // --- 4. Improved Optimistic Update ---
-    // Create a temporary message that matches the new interface.
     const optimisticMessage: Message = {
-      id: `optimistic-${Date.now()}`, // Temporary unique ID
+      id: `optimistic-${Date.now()}`,
       user: userInfo.id,
-      name: userInfo.name, // Display "You" logic is handled in JSX
+      name: userInfo.name,
       text: input,
       sentAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimisticMessage]);
 
-    // Send the message to the server
     socket.emit("client", {
       type: "send_message",
       roomId,
@@ -155,13 +168,12 @@ function ChatPage() {
           Chat Room
         </h1>
         <div className="flex space-x-4 text-sm md:text-base text-gray-400">
-          <span>UserID: {userInfo.id}</span>
-          <span>Users: {usersConnected}</span>
+          <span>UserID: {userInfo.id?.substring(0, 8)}...</span>
+          <span>Online: {usersConnected}</span>
         </div>
       </div>
 
       {/* Messages Container */}
-
       {loading ? <div>Loading history...</div> : (
         <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2 custom-scrollbar">
           {messages.map((m) => (
@@ -183,6 +195,7 @@ function ChatPage() {
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} /> {/* Auto-scroll target */}
         </div>
       )}
 

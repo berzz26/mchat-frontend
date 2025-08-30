@@ -45,7 +45,7 @@ const HomePage: React.FC = () => {
       const fetchRooms = async () => {
          try {
             setLoading(true);
-            const res = await axios.get(`${BACKEND_URL}/room/get-rooms/${userId}`);
+            const res = await axios.get(`${BACKEND_URL}/api/room/get-rooms/${userId}`);
             if (res.data.success) {
                setRooms(res.data.message.generalRooms);
                setUserRooms(res.data.message.userRooms)
@@ -70,7 +70,7 @@ const HomePage: React.FC = () => {
       if (!name) return;
 
       try {
-         const res = await axios.post(`${BACKEND_URL}/room/create-room`, {
+         const res = await axios.post(`${BACKEND_URL}/api/room/create-room`, {
             userId,
             name,
          });
@@ -98,7 +98,7 @@ const HomePage: React.FC = () => {
 
       try {
          const res = await axios.post(
-            `${BACKEND_URL}/room/join-room/${roomId}`,
+            `${BACKEND_URL}/api/room/join-room/${roomId}`,
             { userId } // Pass userId in the body
          );
 

@@ -21,7 +21,7 @@ function AuthPage() {
         setError(null);
 
         try {
-            const endpoint = isNewUser ? `${BACKEND_URL}/auth/signup` : `${BACKEND_URL}/auth/login`;
+            const endpoint = isNewUser ? `${BACKEND_URL}/api/auth/signup` : `${BACKEND_URL}/api/auth/login`;
             const res = await fetch(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
