@@ -3,10 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import axios from "axios";
 
-// --- 1. A single, unified interface for all server events ---
 interface ServerPayload {
   type: "new_message" | "user_count_update" | "user_joined" | "user_left";
-  // Optional properties since they vary by event type
   id?: string;
   userId?: string;
   name?: string;
@@ -29,11 +27,12 @@ function ChatPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
-  const [usersConnected, setUsersConnected] = useState(0); // This will now be updated correctly
+  const [usersConnected, setUsersConnected] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const navigate = useNavigate();
-  const messagesEndRef = useRef<null | HTMLDivElement>(null); // Ref for auto-scroll
+  const messagesEndRef = useRef<null | HTMLDivElement>(null);
+  const [toast, setToast] = useState<string | null>(null); // ✅ Toast state
 
   const [userInfo] = useState(() => {
     try {
@@ -42,8 +41,8 @@ function ChatPage() {
         const storedUser = JSON.parse(user);
         return { id: storedUser.id, name: storedUser.username || "Anonymous" };
       }
-    } catch (error) {
-      console.error("Failed to parse user data from localStorage:", error);
+    } catch {
+      return { id: null, name: "Anonymous" };
     }
     return { id: null, name: "Anonymous" };
   });
@@ -71,7 +70,7 @@ function ChatPage() {
 
   useEffect(() => {
     if (!userInfo.id || !roomId) {
-      navigate('/auth');
+      navigate("/auth");
       return;
     }
     getHistory();
@@ -82,53 +81,35 @@ function ChatPage() {
 
     const socket = socketRef.current;
 
-    // --- 2. A single listener to handle ALL server events ---
     socket.on("server", (payload: ServerPayload) => {
       switch (payload.type) {
         case "new_message":
-          // Safety check to prevent optimistic update duplication
           if (payload.userId === userInfo.id) return;
-
-          const newMessage: Message = {
-            id: payload.id!,
-            user: payload.userId!,
-            name: payload.name!,
-            text: payload.text!,
-            sentAt: payload.sentAt!,
-          };
-          setMessages((prev) => [...prev, newMessage]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: payload.id!,
+              user: payload.userId!,
+              name: payload.name!,
+              text: payload.text!,
+              sentAt: payload.sentAt!,
+            },
+          ]);
           break;
-
-        // --- 3. CORRECTED: User count is handled here! ---
         case "user_count_update":
           setUsersConnected(payload.count!);
           break;
-
-        case "user_joined":
-          // Optional: Add a system message like "User X has joined"
-          console.log(`User ${payload.userId} joined the room.`);
-          break;
-
-        case "user_left":
-          // Optional: Add a system message like "User X has left"
-          console.log(`User ${payload.userId} left the room.`);
-          break;
       }
     });
-
-    // --- The separate, incorrect listener is now REMOVED ---
 
     return () => {
       socket.disconnect();
     };
   }, [userInfo.id, roomId, userInfo.name, navigate]);
 
-
-  // Effect for auto-scrolling
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
 
   const sendMessage = () => {
     const socket = socketRef.current;
@@ -156,61 +137,73 @@ function ChatPage() {
   const copyRoomId = () => {
     if (roomId) {
       navigator.clipboard.writeText(roomId);
-      alert("Room ID copied!");
+      setToast("Room ID copied ✅");
+      setTimeout(() => setToast(null), 2000);
     }
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-900 text-gray-200 p-6 font-sans">
+    <div className="h-screen flex flex-col bg-gray-950 text-gray-100 p-6 font-sans relative">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="absolute top-4 right-4 bg-gray-800 text-gray-200 px-4 py-2 rounded-lg shadow-md text-sm animate-fade-in">
+          {toast}
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-4">
-        <h1 className="text-xl md:text-2xl font-medium text-gray-100">
-          Chat Room : {}
+      <div className="flex justify-between items-center border-b border-gray-800 pb-3 mb-4">
+        <h1 className="text-lg md:text-xl font-medium text-gray-200">
+          Chat Room
         </h1>
-        <div className="flex space-x-4 text-sm md:text-base text-gray-400">
-          <span>UserID: {userInfo.id?.substring(0, 8)}...</span>
-          <span>Online: {usersConnected}</span>
+        <div className="flex space-x-4 text-xs md:text-sm text-gray-400">
+          
+          <span>🟢 Members Online: {usersConnected}</span>
         </div>
       </div>
 
-      {/* Messages Container */}
-      {loading ? <div>Loading history...</div> : (
+      {/* Messages */}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center text-gray-400">
+          Loading chat…
+        </div>
+      ) : (
         <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2 custom-scrollbar">
           {messages.map((m) => (
             <div
               key={m.id}
-              className={`flex items-start ${m.user === userInfo.id ? "justify-end" : "justify-start"
-                }`}
+              className={`flex ${m.user === userInfo.id ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-xs md:max-w-md p-3 rounded-xl ${m.user === userInfo.id
-                  ? "bg-gray-700 text-gray-100"
+                className={`max-w-xs md:max-w-md px-4 py-2 rounded-2xl shadow-sm ${m.user === userInfo.id
+                  ? "bg-blue-600 text-white"
                   : "bg-gray-800 text-gray-200"
                   }`}
               >
-                <b className="font-semibold">
+                <span className="text-sm font-semibold">
                   {m.user === userInfo.id ? "You" : m.name}:
-                </b>{" "}
-                {m.text}
+                </span>{" "}
+                <span className="text-sm">{m.text}</span>
               </div>
             </div>
           ))}
-          <div ref={messagesEndRef} /> {/* Auto-scroll target */}
+          <div ref={messagesEndRef} />
         </div>
+
       )}
 
-      {/* Input Section */}
+      {/* Input */}
       <div className="flex items-center space-x-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder="Type your message..."
-          className="flex-1 px-4 py-2 rounded-md bg-gray-800 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 transition-all duration-200"
+          className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-all duration-200"
         />
         <button
           onClick={sendMessage}
-          className="px-6 py-2 rounded-md bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-500 transition-all duration-200"
+          className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
         >
           Send
         </button>
@@ -220,10 +213,9 @@ function ChatPage() {
       <div className="mt-4 flex justify-center">
         <button
           onClick={copyRoomId}
-          className="px-4 py-2 bg-gray-800 text-gray-400 rounded-md text-xs hover:text-gray-200 transition-colors duration-200"
+          className="px-4 py-2 bg-gray-900 text-gray-400 rounded-md text-xs hover:text-white transition"
         >
-          {roomId}
-          <span className="ml-2">Copy Room ID</span>
+          {roomId} <span className="ml-2">copy</span>
         </button>
       </div>
     </div>
